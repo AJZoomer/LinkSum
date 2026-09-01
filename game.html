@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="favicon.ico">
+  <title>LinkSum – Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <div id="float-bg"></div>
+
+  <canvas id="confetti"></canvas>
+
+  <div class="top-bar">
+    <button id="help-btn" onclick="location.href='howtoplay.html'">?</button>
+    <button id="back-btn" onclick="location.href='index.html'">←</button>
+  </div>
+
+  <div class="app">
+    <header>
+      <h1 id="mode-title">LinkSum</h1>
+      <div class="info">
+        <span id="target"></span>
+        <span id="tiles"></span>
+        <span id="streak"></span>
+      </div>
+    </header>
+
+    <main>
+      <div id="grid" class="grid"></div>
+      <div class="status" id="status"></div>
+    </main>
+
+    <footer class="footer">
+      © 2026 AJZoomer • Version 1.0
+    </footer>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Congrats!</h2>
+      <p id="modal-msg"></p>
+      <button id="play-again">Play Again</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  <script src="background.js" defer></script>
+</body>
+</html>
