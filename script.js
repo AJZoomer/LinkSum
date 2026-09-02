@@ -11,7 +11,7 @@ let path = [];
 let isDragging = false;
 let startTime = null;
 let timerInterval = null;
-let PATH_LENGTH = 0; // now dynamic
+let PATH_LENGTH = 0;
 
 // ----- DOM -----
 const gridEl = document.getElementById("grid");
@@ -21,7 +21,7 @@ const streakEl = document.getElementById("streak");
 const statusEl = document.getElementById("status");
 const timeEl = document.getElementById("time");
 
-// ----- MODE DETECTION -----
+// ----- MODE -----
 const params = new URLSearchParams(location.search);
 const mode = params.get("mode") || "classic";
 
@@ -46,18 +46,16 @@ function generatePuzzle() {
 
   const rng = mulberry32(seed);
 
-  // RANDOM TILE COUNT (4–8)
   PATH_LENGTH = 4 + Math.floor(rng() * 5);
 
   gridSize = BASE_GRID_SIZE;
   document.documentElement.style.setProperty("--grid-size", gridSize);
 
-  // Create empty grid
   grid = Array.from({ length: gridSize }, () =>
     Array.from({ length: gridSize }, () => 0)
   );
 
-  // Generate path
+  // ----- PATH GENERATION (no revisits) -----
   path = [];
   let r = Math.floor(rng() * gridSize);
   let c = Math.floor(rng() * gridSize);
@@ -70,17 +68,26 @@ function generatePuzzle() {
     if (c > 0) moves.push({ r, c: c - 1 });
     if (c < gridSize - 1) moves.push({ r, c: c + 1 });
 
-    const next = moves[Math.floor(rng() * moves.length)];
+    const available = moves.filter(m =>
+      !path.some(p => p.r === m.r && p.c === m.c)
+    );
+
+    if (available.length === 0) {
+      // dead end → restart path
+      path = [];
+      r = Math.floor(rng() * gridSize);
+      c = Math.floor(rng() * gridSize);
+      path.push({ r, c });
+      continue;
+    }
+
+    const next = available[Math.floor(rng() * available.length)];
     r = next.r;
     c = next.c;
-
-    const last = path[path.length - 1];
-    if (last.r === r && last.c === c) continue;
-
     path.push({ r, c });
   }
 
-  // Fill path tiles with numbers
+  // ----- FILL PATH TILES -----
   targetSum = 0;
   path.forEach(({ r, c }) => {
     const val = MIN_VAL + Math.floor(rng() * (MAX_VAL - MIN_VAL + 1));
@@ -88,7 +95,7 @@ function generatePuzzle() {
     targetSum += val;
   });
 
-  // Fill remaining tiles with normal values
+  // ----- FILL NORMAL TILES -----
   for (let i = 0; i < gridSize; i++) {
     for (let j = 0; j < gridSize; j++) {
       if (grid[i][j] === 0) {
@@ -98,22 +105,22 @@ function generatePuzzle() {
     }
   }
 
-  // Add MULTIPLIER tiles (10% chance)
+  // ----- MULTIPLIERS (seeded, never on path) -----
   for (let r = 0; r < gridSize; r++) {
     for (let c = 0; c < gridSize; c++) {
-      if (Math.random() < 0.10 && !isPathTile(r, c)) {
+      if (!isPathTile(r, c) && rng() < 0.10) {
         grid[r][c] = {
           type: "mult",
-          value: Math.random() < 0.5 ? 2 : 3 // x2 or x3
+          value: rng() < 0.5 ? 2 : 3
         };
       }
     }
   }
 
-  // Add BLOCKER tiles (8% chance)
+  // ----- BLOCKERS (seeded, never on path) -----
   for (let r = 0; r < gridSize; r++) {
     for (let c = 0; c < gridSize; c++) {
-      if (Math.random() < 0.08 && !isPathTile(r, c)) {
+      if (!isPathTile(r, c) && rng() < 0.08) {
         grid[r][c] = { type: "block" };
       }
     }
@@ -155,9 +162,10 @@ function renderGrid() {
     }
   }
 
-  attachInputHandlers();
+  attachTileHandlers();
 }
 
+// ----- HEADER -----
 function updateHeader() {
   targetEl.textContent = `Target: ${targetSum}`;
   tilesEl.textContent = `Tiles: ${PATH_LENGTH}`;
@@ -177,7 +185,7 @@ function incrementStreak() {
 // ----- INPUT -----
 let currentPath = [];
 
-function attachInputHandlers() {
+function attachTileHandlers() {
   const tiles = Array.from(document.querySelectorAll(".tile"));
 
   const start = (e, tile) => {
@@ -189,43 +197,51 @@ function attachInputHandlers() {
     startTimer();
   };
 
-  const move = (e) => {
-    if (!isDragging) return;
-    const touch = e.touches ? e.touches[0] : e;
-    const el = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (!el || !el.classList.contains("tile")) return;
-    addTile(el);
-  };
-
-  const end = () => {
-    if (!isDragging) return;
-    isDragging = false;
-    checkPath();
-  };
-
   tiles.forEach(tile => {
     tile.addEventListener("mousedown", (e) => start(e, tile));
     tile.addEventListener("touchstart", (e) => start(e, tile), { passive: false });
   });
-
-  document.addEventListener("mousemove", move);
-  document.addEventListener("touchmove", move, { passive: false });
-  document.addEventListener("mouseup", end);
-  document.addEventListener("touchend", end);
 }
 
+// ----- GLOBAL INPUT LISTENERS (added once) -----
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  const touch = e.touches ? e.touches[0] : e;
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!el || !el.classList.contains("tile")) return;
+  addTile(el);
+});
+
+document.addEventListener("touchmove", (e) => {
+  if (!isDragging) return;
+  const touch = e.touches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!el || !el.classList.contains("tile")) return;
+  addTile(el);
+}, { passive: false });
+
+document.addEventListener("mouseup", () => {
+  if (!isDragging) return;
+  isDragging = false;
+  checkPath();
+});
+
+document.addEventListener("touchend", () => {
+  if (!isDragging) return;
+  isDragging = false;
+  checkPath();
+});
+
+// ----- TILE LOGIC -----
 function addTile(tile) {
   const r = parseInt(tile.dataset.r, 10);
   const c = parseInt(tile.dataset.c, 10);
   const cell = grid[r][c];
 
-  // BLOCKERS cannot be used
   if (cell.type === "block") return;
 
-  // Already used
   if (currentPath.some(p => p.r === r && p.c === c)) return;
 
-  // Must be adjacent
   if (currentPath.length > 0) {
     const last = currentPath[currentPath.length - 1];
     const dr = Math.abs(last.r - r);
@@ -351,8 +367,9 @@ function startTimer() {
 }
 
 function resetTimer() {
-  startTime = null;
   clearInterval(timerInterval);
+  timerInterval = null;
+  startTime = null;
   timeEl.textContent = "Time: 0s";
 }
 
